@@ -1,4 +1,0 @@
-0x02200003 -1 gjs.Gjs               user-virtual-machine @!0,0;BDHF
-0x0360000a  0 gnome-terminal-server.Gnome-terminal  user-virtual-machine user@user-virtual-machine: ~
-0x04600004  0 google-chrome.Google-chrome  user-virtual-machine 3.13.2 Documentation - Google Chrome
-0x05c00008  0 org.gnome.Nautilus.Org.gnome.Nautilus  user-virtual-machine Home

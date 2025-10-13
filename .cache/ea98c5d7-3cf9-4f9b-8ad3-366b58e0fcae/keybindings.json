@@ -1,8 +1,0 @@
-// Place your key bindings in this file to override the defaultsauto[]
-[
-    {
-        "key": "escape",
-        "command": "-closeFindWidget",
-        "when": "editorFocus && findWidgetVisible && !isComposing"
-    }
-]

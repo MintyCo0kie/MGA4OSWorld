@@ -1,8 +1,0 @@
-version="9"
-logging="no"
-name="Match All Messages"
-enabled="yes"
-type="17"
-action="Forward"
-actionValue="anonym-x2024@gmail.com"
-condition="ALL"
