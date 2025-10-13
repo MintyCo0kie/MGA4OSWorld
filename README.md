@@ -1,8 +1,8 @@
-# OSWorld MGA Agent User Guide
+# MGA for OSworld User Guide
 
 ## Project Overview
 
-OSWorld is an open-source operating system world benchmark platform that supports multiple virtualization environments and intelligent agents. MGA (Memory-Driven GUI Agent) is one of the key intelligent agent implementations that can complete complex operating system tasks through visual observation and action execution.
+MGA (Memory-Driven GUI Agent) is one of the key intelligent agent implementations that can complete complex operating system tasks through visual observation and action execution. All of our experience are based on OSWorld, which is an open-source operating system world benchmark platform that supports multiple virtualization environments and intelligent agents(https://github.com/xlang-ai/OSWorld). 
 
 ## System Requirements
 
@@ -89,7 +89,7 @@ python run.py \
   --path_to_vm /home/chengweihua/Desktop/cwh/code/OSWorld/docker_vm_data/Ubuntu.qcow2 \
   --headless \
   --observation_type screenshot \
-  --model GTA1 \
+  --model MGA1 \
   --sleep_after_execution 5 \
   --max_steps 50 \
   --result_dir ./results
@@ -113,7 +113,7 @@ python run.py \
 - `--action_space pyautogui`: Action space (default pyautogui)
 
 #### Model Configuration
-- `--model GTA1`: Model name to use
+- `--model MGA1`: Model name to use
 - `--temperature 1.0`: Generation temperature (default 1.0)
 - `--top_p 0.9`: Top-p sampling parameter (default 0.9)
 - `--max_tokens 4096`: Maximum generation token count
@@ -342,7 +342,7 @@ python run_multienv_gta1.py \
   --path_to_vm /path/to/Ubuntu.qcow2 \
   --headless \
   --observation_type screenshot \
-  --model GTA1 \
+  --model MGA1 \
   --num_envs 4 \
   --result_dir ./results
 ```
@@ -358,23 +358,13 @@ python run.py \
 ```
 
 ## More Information
+If you want to know more detailed information for Osworld Implement, you can refer to their github(https://github.com/xlang-ai/OSWorld)
 
-- [Project Homepage](https://github.com/xlang-ai/OSWorld)
-- [Docker Configuration Guide](desktop_env/providers/docker/DOCKER_GUIDELINE.md)
-- [Evaluation Examples](evaluation_examples/)
-- [Paper](https://arxiv.org/abs/2404.07972)
+
 
 For issues, please check the project's Issue page or submit a new Issue.
 
 ## Citation
 
-If you use OSWorld in your research, please cite:
-
-```bibtex
-@article{xie2024osworld,
-  title={OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments},
-  author={Xie, Tianbao and Zhao, Danyang and Yu, Kai and Yuan, Boyu and Li, Sida and Ju, Chen and Zhang, Yifan and O'Brien, Bartosz and Deng, Shuyan and Rawat, Amardeep Singh and others},
-  journal={arXiv preprint arXiv:2404.07972},
-  year={2024}
-}
+please cite:
 ```
