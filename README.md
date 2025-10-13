@@ -113,7 +113,7 @@ python run.py \
 - `--action_space pyautogui`: Action space (default pyautogui)
 
 #### Model Configuration
-- `--model GTA1`: Model name to use
+- `--model MGA1`: Model name to use
 - `--temperature 1.0`: Generation temperature (default 1.0)
 - `--top_p 0.9`: Top-p sampling parameter (default 0.9)
 - `--max_tokens 4096`: Maximum generation token count
@@ -342,7 +342,7 @@ python run_multienv_gta1.py \
   --path_to_vm /path/to/Ubuntu.qcow2 \
   --headless \
   --observation_type screenshot \
-  --model GTA1 \
+  --model MGA1 \
   --num_envs 4 \
   --result_dir ./results
 ```
