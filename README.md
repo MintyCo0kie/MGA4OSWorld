@@ -1,4 +1,4 @@
-# OSWorld MGA Agent User Guide
+# MGA for OSworld User Guide
 
 ## Project Overview
 
