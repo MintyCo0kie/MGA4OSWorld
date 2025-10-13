@@ -1,0 +1,31 @@
+<?xml version="1.0"  encoding="UTF-8"?>
+<ncx version="2005-1" xml:lang="en" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+<head><meta name="dtb:uid" content="isbn"/><meta name="dtb:depth" content="1"/></head>
+<docTitle><text>Pass Through</text></docTitle><navMap>
+<navLabel>
+<text>
+Chapter0</text>
+</navLabel>
+<content src="file0.html"/>
+<navLabel>
+<text>
+Chapter1</text>
+</navLabel>
+<content src="file1.html"/>
+<navLabel>
+<text>
+Chapter2</text>
+</navLabel>
+<content src="file2.html"/>
+<navLabel>
+<text>
+Chapter3</text>
+</navLabel>
+<content src="file3.html"/>
+<navLabel>
+<text>
+Chapter4</text>
+</navLabel>
+<content src="file4.html"/>
+</navMap>
+</ncx>

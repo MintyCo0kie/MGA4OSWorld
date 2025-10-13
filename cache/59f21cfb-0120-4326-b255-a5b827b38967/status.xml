@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+
+<root>
+
+<videoeffects>
+  <brightness>1</brightness>
+  <saturation>1</saturation>
+  <contrast>1</contrast>
+  <gamma>1</gamma>
+  <hue>0</hue></videoeffects>
+<random>false</random>
+<length>212</length>
+<subtitledelay>0</subtitledelay>
+<aspectratio>default</aspectratio>
+<rate>1</rate>
+<fullscreen>false</fullscreen>
+<currentplid>3</currentplid>
+<time>65</time>
+<volume>0</volume>
+<audiofilters>
+  <filter_0></filter_0></audiofilters>
+<equalizer></equalizer>
+<repeat>false</repeat>
+<apiversion>3</apiversion>
+<loop>false</loop>
+<position>0.30960553884506</position>
+<state>playing</state>
+<version>3.0.16 Vetinari</version>
+<audiodelay>0</audiodelay><information>
+    <category name="meta">
+    <info name='filename'>Rick Astley - Never Gonna Give You Up (Official Music Video).mp4</info><info name='YouTube Track Duration'>212091</info><info name='YouTube Start Time'>0</info>    </category>
+  <category name='Stream 0'><info name='Color space'>ITU-R BT.709 Range</info><info name='Codec'>H264 - MPEG-4 AVC (part 10) (avc1)</info><info name='Color transfer function'>ITU-R BT.709</info><info name='Buffer dimensions'>640x386</info><info name='Type'>Video</info><info name='Frame rate'>25</info><info name='Orientation'>Top left</info><info name='Video resolution'>640x360</info><info name='Chroma location'>Left</info><info name='Color primaries'>ITU-R BT.709</info><info name='Decoded format'>Planar 4:2:0 YUV</info></category><category name='Stream 1'><info name='Type'>Audio</info><info name='Bits per sample'>16</info><info name='Language'>English</info><info name='Codec'>MPEG AAC Audio (mp4a)</info><info name='Sample rate'>44100 Hz</info></category>  </information>
+  <stats>
+  <sentbytes>0</sentbytes>
+<readbytes>2217301</readbytes>
+<decodedaudio>0</decodedaudio>
+<inputbitrate>0.024998925626278</inputbitrate>
+<demuxreadbytes>1917555</demuxreadbytes>
+<readpackets>1093</readpackets>
+<averagedemuxbitrate>0</averagedemuxbitrate>
+<averageinputbitrate>0</averageinputbitrate>
+<demuxdiscontinuity>1</demuxdiscontinuity>
+<demuxcorrupted>0</demuxcorrupted>
+<lostpictures>2</lostpictures>
+<playedabuffers>0</playedabuffers>
+<lostabuffers>0</lostabuffers>
+<sendbitrate>0</sendbitrate>
+<demuxbitrate>0.022932853549719</demuxbitrate>
+<displayedpictures>1634</displayedpictures>
+<sentpackets>0</sentpackets>
+<decodedvideo>3335</decodedvideo>
+<demuxreadpackets>0</demuxreadpackets>
+  </stats>
+</root>

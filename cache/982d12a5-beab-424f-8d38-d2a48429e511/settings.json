@@ -1,0 +1,6 @@
+{
+    "security.workspace.trust.enabled": false,
+    "security.workspace.trust.startupPrompt": "never",
+    "security.workspace.trust.emptyWindow": false,
+    "workbench.colorTheme": "Visual Studio Dark"
+}

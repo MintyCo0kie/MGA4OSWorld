@@ -1,0 +1,8 @@
+version="9"
+logging="no"
+name="Discount to Promotions"
+enabled="yes"
+type="17"
+action="Move to folder"
+actionValue="mailbox://nobody@Local%20Folders/Promotions"
+condition="AND (subject,contains,discount)"

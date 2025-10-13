@@ -1,0 +1,7 @@
+{
+    "python.pythonPath": "python3",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.formatting.autopep8Path": "autopep8",
+    "editor.formatOnSave": true
+}

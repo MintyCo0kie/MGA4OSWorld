@@ -1,0 +1,7 @@
+{
+    "terminal.integrated.cursorStyle": "underline",
+    "terminal.integrated.cursorStyleInactive": "block",
+    "terminal.integrated.commandsToSkipShell": [
+        "cursor focus"
+    ]
+}

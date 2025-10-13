@@ -1,0 +1,23 @@
+<?xml version="1.0"  encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="uuid_id">
+<metadata xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:opf="http://www.idpf.org/2007/opf" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:title>Pass Through</dc:title>
+<dc:language>en</dc:language>
+<dc:creator opf:role="aut" opf:file-as="unknown">unknown</dc:creator>
+</metadata>
+<manifest>
+<item href="file0.html" id="file0" media-type="application/xhtml+xml"/>
+<item href="file1.html" id="file1" media-type="application/xhtml+xml"/>
+<item href="file2.html" id="file2" media-type="application/xhtml+xml"/>
+<item href="file3.html" id="file3" media-type="application/xhtml+xml"/>
+<item href="file4.html" id="file4" media-type="application/xhtml+xml"/>
+<item href="toc.ncx" media-type="application/x-dtbncx+xml" id="ncx"/>
+</manifest>
+<spine toc="ncx">
+<itemref idref="file0"/>
+<itemref idref="file1"/>
+<itemref idref="file2"/>
+<itemref idref="file3"/>
+<itemref idref="file4"/>
+</spine>
+</package>

@@ -1,0 +1,7 @@
+0x02200003 -1 gjs.Gjs               user-virtual-machine @!0,0;BDHF
+0x03a00006  0 vlc.vlc               user-virtual-machine VLC media player
+0x0380000a  0 gnome-terminal-server.Gnome-terminal  user-virtual-machine user@user-virtual-machine: ~
+0x04800008  0 org.gnome.Nautilus.Org.gnome.Nautilus  user-virtual-machine OSWorld
+0x03800ae9  0 gnome-terminal-server.Gnome-terminal  user-virtual-machine user@user-virtual-machine: ~/Documents/Projects/OSWorld
+0x05200004  0 google-chrome.Google-chrome  user-virtual-machine 3.13.7 Documentation - Google Chrome
+0x03801321  0 gnome-terminal-server.Gnome-terminal  user-virtual-machine user@user-virtual-machine: ~/Documents/Projects/OSWorld
