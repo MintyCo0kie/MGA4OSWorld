@@ -1040,6 +1040,10 @@ This summary should serve as a detailed observational record focusing on state t
         """
 
 
+        detailed_observation = self.detailed_observation_via_grounding(obs)
+
+        logger.debug(f"\nStep {self.current_step + 1} detailed_observation : {detailed_observation}")
+        
         if len(self.thoughts) > 0:
             o3_summary = self.summarize_with_o3(instruction, self.thoughts[-1],self.actions[-1], self.observation_captions[-1], self.memory[-1])
 
@@ -1051,16 +1055,17 @@ This summary should serve as a detailed observational record focusing on state t
         self.memory.append(o3_summary)
 
         user_prompt = (
-                    f"""Please generate the next move according to the UI screenshot, Detailed Current Observation and instruction. And you can refer to the summary of previous actions and observations for reflection.
+                    f"""Please generate the next move according to the UI screenshot and instruction. And you can refer to the previous actions and observations for reflection.
 
-        **Previous Summary:**
-        {o3_summary}
+**Detailed Current Observation:**
+{detailed_observation}
 
-        **Instruction:** {instruction}
+**Previous Step Summary:**
+{o3_summary}
 
-        Your primary focus should be on making decisions based on the Detailed Current Observation, the Screen Spatial Analysis and the Instruction provided. These are the key elements guiding your actions.
+**Instruction:** {instruction}
 
-        Additionally, you should carefully review the Potential Issues highlighted in the Previous Summary to avoid repeating mistakes or encountering similar obstacles. Use this information as a reference to refine your approach, but always prioritize the current observation and instruction when determining the next steps.
+Additionally, you should carefully review the Potential Issues highlighted in the Previous Summary to avoid repeating mistakes or encountering similar obstacles. Use this information as a reference to refine your approach, but always prioritize the current observation and instruction when determining the next steps.
 
         """)
 
