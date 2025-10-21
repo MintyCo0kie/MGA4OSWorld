@@ -1,12 +1,11 @@
 # MGA for OSworld User Guide
 
-
-https://github.com/user-attachments/assets/0cf0fc0f-353d-44fc-a85c-629321e1d446
-
-
 ## Project Overview
 
 MGA (Memory-Driven GUI Agent) is one of the key intelligent agent implementations that can complete complex operating system tasks through visual observation and action execution. All of our experience are based on OSWorld, which is an open-source operating system world benchmark platform that supports multiple virtualization environments and intelligent agents(https://github.com/xlang-ai/OSWorld). 
+
+https://github.com/user-attachments/assets/0cf0fc0f-353d-44fc-a85c-629321e1d446
+
 
 ## System Requirements
 
