@@ -924,9 +924,6 @@ class MGA1Agent:
 
 
     def detailed_observation_via_grounding(self, obs: Dict) -> str:
-        """
-        通过grounding_url获取详细的观测信息
-        """
         try:
             image_base64 = encode_image(obs['screenshot'])
             
@@ -943,7 +940,7 @@ class MGA1Agent:
                 data = data["output_text"][0] if isinstance(data["output_text"], list) and len(data["output_text"]) > 0 else ""
                 return data
             else:
-                logger.error(f"本地模型API错误: {response.status_code} - {response.text}")
+                logger.error(f"{response.status_code} - {response.text}")
                 return ""
 
                 
@@ -951,7 +948,7 @@ class MGA1Agent:
             logger.error(f"Error during grounding observation: {str(e)}")
             return "Error occurred during detailed observation phase."
 
-    def summarize_with_o3(self, instruction: str, last_thought : str,last_actions : str,last_observation : str, last_memory: str) -> str:
+    def summarize(self, instruction: str, last_thought : str,last_actions : str,last_observation : str, last_memory: str) -> str:
 
         summary_prompt = """
 You are an expert at summarizing GUI automation contexts. Your task is to analyze the sequence of past observations, thoughts, and actions, and provide a concise summary of what has happened so far. Do not provide any suggestions or recommendations for the next step; just summarize the previous operations to serve as a reference for further reasoning.
@@ -1045,14 +1042,14 @@ This summary should serve as a detailed observational record focusing on state t
         logger.debug(f"\nStep {self.current_step + 1} detailed_observation : {detailed_observation}")
         
         if len(self.thoughts) > 0:
-            o3_summary = self.summarize_with_o3(instruction, self.thoughts[-1],self.actions[-1], self.observation_captions[-1], self.memory[-1])
+            summary = self.summarize(instruction, self.thoughts[-1],self.actions[-1], self.observation_captions[-1], self.memory[-1])
 
         else:
-            o3_summary = "No previous steps."
+            summary = "No previous steps."
 
-        logger.debug(f"\nStep {self.current_step + 1} summary : {o3_summary}")
+        logger.debug(f"\nStep {self.current_step + 1} summary : {summary}")
 
-        self.memory.append(o3_summary)
+        self.memory.append(summary)
 
         user_prompt = (
                     f"""Please generate the next move according to the UI screenshot and instruction. And you can refer to the previous actions and observations for reflection.
@@ -1061,7 +1058,7 @@ This summary should serve as a detailed observational record focusing on state t
 {detailed_observation}
 
 **Previous Step Summary:**
-{o3_summary}
+{summary}
 
 **Instruction:** {instruction}
 
@@ -1267,7 +1264,7 @@ Additionally, you should carefully review the Potential Issues highlighted in th
         if self.current_step >= self.max_steps:
             pyautogui_actions = ["FAIL"]
 
-        logger.debug(f"\nStep {self.current_step}: previous summary - {o3_summary}")
+        logger.debug(f"\nStep {self.current_step}: previous summary - {summary}")
         logger.debug(f"\nStep {self.current_step}: Thoughts - {thought}")
         logger.debug(f"\nStep {self.current_step}: Codes - {plan_code}")
         logger.debug(f"\nStep {self.current_step}: Actions - {pyautogui_actions}")
