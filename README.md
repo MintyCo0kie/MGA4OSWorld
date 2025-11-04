@@ -1,3 +1,10 @@
+
+<h1 align="center">MGA: Memory-Driven GUI Agent for Observation-Centric Interaction</h1>
+<p align="center">
+    <a href="https://arxiv.org/abs/2510.24168">
+        <img alt="Build" src="http://img.shields.io/badge/cs.CV-arXiv%3A2510.24168-B31B1B.svg">
+    </a>
+</p>
 # MGA for OSworld User Guide
 
 ## Project Overview
