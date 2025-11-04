@@ -5,7 +5,6 @@
         <img alt="Build" src="http://img.shields.io/badge/cs.CV-arXiv%3A2510.24168-B31B1B.svg">
     </a>
 </p>
-# MGA for OSworld User Guide
 
 ## Project Overview
 
