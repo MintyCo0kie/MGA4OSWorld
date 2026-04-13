@@ -1,0 +1,34 @@
+# Example MGA Configuration for AWS Multi-Environment
+
+environment:
+  provider_name: aws
+  path_to_vm: null
+  region: us-east-1
+  headless: true
+  screen_width: 1920
+  screen_height: 1080
+  action_space: pyautogui
+  observation_type: screenshot
+  sleep_after_execution: 5.0
+  client_password: "your_password_here"
+
+agent:
+  model: MGA1
+  max_tokens: 4096
+  temperature: 1.0
+  top_p: 0.9
+  max_steps: 50
+  max_trajectory_length: 3
+
+experiment:
+  domain: os  # Test only OS domain
+  test_config_base_dir: evaluation_examples
+  test_all_meta_path: evaluation_examples/test_all.json
+  result_dir: ./results
+  num_envs: 4  # Run 4 environments in parallel
+
+logging:
+  log_level: INFO
+  log_dir: logs
+  enable_file_logging: true
+  enable_console_logging: true

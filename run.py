@@ -15,6 +15,8 @@ import lib_run_single
 from desktop_env.desktop_env import DesktopEnv
 # from mm_agents.agent import PromptAgent
 from mm_agents.MGA_Agent import MGA1Agent
+import numpy as np
+
 
 # Almost deprecated since it's not multi-env, use run_multienv_*.py instead
 
@@ -23,7 +25,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 datetime_str: str = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
-
+ 
 file_handler = logging.FileHandler(
     os.path.join("logs", "normal-{:}.log".format(datetime_str)), encoding="utf-8"
 )
@@ -86,7 +88,7 @@ def config() -> argparse.Namespace:
     parser.add_argument("--screen_width", type=int, default=1920)
     parser.add_argument("--screen_height", type=int, default=1080)
     parser.add_argument("--sleep_after_execution", type=float, default=3.0)
-    parser.add_argument("--max_steps", type=int, default=30)
+    parser.add_argument("--max_steps", type=int, default=50)
 
     # agent config
     parser.add_argument("--max_trajectory_length", type=int, default=3)
@@ -103,11 +105,12 @@ def config() -> argparse.Namespace:
     # example config
     parser.add_argument("--domain", type=str, default="all")
     parser.add_argument(
-        "--test_all_meta_path", type=str, default="evaluation_examples/test_all.json"
+        "--test_all_meta_path", type=str, default="evaluation_examples/unfinished_cwh_41-55.json"
     )
 
     # logging related
     parser.add_argument("--result_dir", type=str, default="./results")
+    parser.add_argument("--config_path", type=str, default="mm_agents/config/config.yaml")
     args = parser.parse_args()
 
     return args
@@ -149,20 +152,11 @@ def test(args: argparse.Namespace, test_all_meta: dict) -> None:
     #     max_trajectory_length=args.max_trajectory_length,
     # )
 
-    agent = MGA1Agent(
-        # model=args.model,
-        max_tokens=args.max_tokens,
-        top_p=args.top_p,
-        temperature=args.temperature,
-        action_space=args.action_space,
-        observation_type=args.observation_type,
-        # max_trajectory_length=args.max_trajectory_length,
-    )
+
 
     env = DesktopEnv(
         provider_name=args.provider_name,
         path_to_vm=args.path_to_vm,
-        action_space=agent.action_space,
         screen_size=(args.screen_width, args.screen_height),
         headless=args.headless,
         os_type = "Ubuntu",
@@ -170,6 +164,8 @@ def test(args: argparse.Namespace, test_all_meta: dict) -> None:
         in ["a11y_tree", "screenshot_a11y_tree", "som"],
     )
 
+    agent = MGA1Agent(env, config_path=args.config_path)
+    
     for domain in tqdm(test_all_meta, desc="Domain"):
         for example_id in tqdm(test_all_meta[domain], desc="Example", leave=False):
             config_file = os.path.join(
@@ -323,6 +319,9 @@ if __name__ == "__main__":
     with open(args.test_all_meta_path, "r", encoding="utf-8") as f:
         test_all_meta = json.load(f)
 
+    # target_domains = ["thunderbird", "vlc","chrome"]
+    target_domains = ["libreoffice_writer"]
+
     test_all_meta = {domain: test_all_meta[domain] for domain in target_domains if domain in test_all_meta}
 
     test_file_list = get_unfinished(
@@ -345,3 +344,6 @@ if __name__ == "__main__":
         test_all_meta,
     )
     test(args, test_file_list)
+
+
+

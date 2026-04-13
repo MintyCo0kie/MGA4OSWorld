@@ -1,0 +1,52 @@
+# ============================================================
+# MGA Agent Configuration
+# ============================================================
+
+# ========== Common ==========
+common:
+  platform: "ubuntu"
+  max_tokens: 8192
+  temperature: 0.9
+  top_p: 0.9
+  max_steps: 30
+  max_image_history_length: 5
+  N_SEQ: 1
+  action_space: "pyautogui"
+  observation_type: "screenshot"
+  width: 1920
+  height: 1080
+    #=== kimi ===
+  screen_size: [1920, 1080] # The screen size
+  coordinate_type: "relative" # The coordinate type: relative, absolute, qwen25
+  thinking: true
+# ========== Planner ==========
+planner:
+  model: "gpt-5"
+  # model: "kimi-k2.5"
+  client_type: "openai"          # "openai" or "local"
+  base_url: ""
+  api_key: ""                    
+
+
+# ========== Memory ==========
+memory:
+  enabled: true
+  model: "qwen"
+  client_type: "local"           # "openai" or "local"
+  base_url: ""
+  api_key: ""
+
+# ========== Observer ==========
+observer:
+  enabled: true
+  model: "observer"
+  client_type: "local"           # "openai" or "local"
+  base_url: ""
+  api_key: ""
+
+# ========== Grounding ==========
+grounding:
+  model: "grounding"
+  client_type: "local"           # "openai" or "local"
+  base_url: ""
+  api_key: ""

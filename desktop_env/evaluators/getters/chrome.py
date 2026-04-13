@@ -12,7 +12,7 @@ import lxml.etree
 import requests
 from lxml.cssselect import CSSSelector
 from lxml.etree import _Element
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import sync_playwright, expect, TimeoutError
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive, GoogleDriveFileList, GoogleDriveFile
 
@@ -462,6 +462,253 @@ def get_chrome_font_size(env, config: Dict[str, str]):
         }
 
 
+def get_chrome_color_scheme(env, config: Dict[str, str]):
+    """
+    Get Chrome browser color scheme preference.
+    Returns one of: "system", "light", "dark".
+    """
+    def _normalize_color_scheme(raw_value):
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip().lower()
+            if normalized in {"system", "default", "0"}:
+                return "system"
+            if normalized in {"light", "1"}:
+                return "light"
+            if normalized in {"dark", "2"}:
+                return "dark"
+            return None
+        if isinstance(raw_value, (int, float)):
+            mapping = {0: "system", 1: "light", 2: "dark"}
+            return mapping.get(int(raw_value), None)
+        return None
+
+    def _extract_mode_from_preferences(data):
+        theme_data = data.get('browser', {}).get('theme', {})
+        # Newer Chrome writes color_scheme2; older versions may still use color_scheme.
+        raw_value = theme_data.get('color_scheme2', theme_data.get('color_scheme', None))
+        mode = _normalize_color_scheme(raw_value)
+        # Fallback for Linux builds where appearance updates may be reflected through
+        # extensions.theme.system_theme while color_scheme remains stale.
+        system_theme_flag = data.get('extensions', {}).get('theme', {}).get('system_theme', None)
+        if system_theme_flag in [0, "0", False]:
+            return "light"
+        return mode if mode else "system"
+
+    os_type = env.vm_platform
+    try:
+        candidate_paths = []
+        if os_type == 'Windows':
+            preference_file_path = env.controller.execute_python_command("""import os; print(os.path.join(os.getenv('LOCALAPPDATA'),
+                                                    'Google\\Chrome\\User Data\\Default\\Preferences'))""")[
+                'output'].strip()
+            candidate_paths = [preference_file_path]
+        elif os_type == 'Darwin':
+            preference_file_path = env.controller.execute_python_command(
+                "import os; print(os.path.join(os.getenv('HOME'), 'Library/Application Support/Google/Chrome/Default/Preferences'))")[
+                'output'].strip()
+            candidate_paths = [preference_file_path]
+        elif os_type == 'Linux':
+            if "arm" in platform.machine():
+                preference_file_path = env.controller.execute_python_command(
+                    "import os; print(os.path.join(os.getenv('HOME'), 'snap/chromium/common/chromium/Default/Preferences'))")[
+                    'output'].strip()
+                candidate_paths = [preference_file_path]
+            else:
+                # Enumerate profile preference files and rank by last modified time.
+                path_probe = r"""
+import glob, json, os
+roots = [
+    os.path.expanduser('~/.config/google-chrome'),
+    '/home/user/.config/google-chrome',
+    '/home/ubuntu/.config/google-chrome',
+]
+seen = set()
+results = []
+for root in roots:
+    if not os.path.isdir(root):
+        continue
+    patterns = [
+        os.path.join(root, 'Default', 'Preferences'),
+        os.path.join(root, 'Guest Profile', 'Preferences'),
+        os.path.join(root, 'Profile *', 'Preferences'),
+    ]
+    for pattern in patterns:
+        for p in glob.glob(pattern):
+            if p in seen or not os.path.isfile(p):
+                continue
+            seen.add(p)
+            try:
+                mtime = os.path.getmtime(p)
+            except Exception:
+                mtime = 0
+            results.append({'path': p, 'mtime': mtime})
+print(json.dumps(results))
+"""
+                probe_output = env.controller.execute_python_command(path_probe).get('output', '').strip()
+                probed = json.loads(probe_output) if probe_output else []
+                probed.sort(key=lambda x: x.get('mtime', 0), reverse=True)
+                candidate_paths = [item.get('path') for item in probed if item.get('path')]
+                if not candidate_paths:
+                    fallback = env.controller.execute_python_command(
+                        "import os; print(os.path.join(os.getenv('HOME'), '.config/google-chrome/Default/Preferences'))")[
+                        'output'].strip()
+                    candidate_paths = [fallback]
+        else:
+            raise Exception('Unsupported operating system')
+
+        # Chrome may flush Preferences asynchronously right after the UI toggle.
+        # Poll briefly to avoid evaluating stale on-disk values.
+        final_mode = "system"
+        for _ in range(5):
+            best_mode = None
+            for preference_file_path in candidate_paths:
+                try:
+                    content = env.controller.get_file(preference_file_path)
+                    if not content:
+                        continue
+                    data = json.loads(content)
+                    mode = _extract_mode_from_preferences(data)
+                    # Prefer explicit user selection over "system".
+                    if mode in {"light", "dark"}:
+                        best_mode = mode
+                        break
+                    if best_mode is None:
+                        best_mode = mode
+                except Exception:
+                    continue
+
+            if best_mode is not None:
+                final_mode = best_mode
+                # If it already became light, return immediately.
+                if best_mode == "light":
+                    return "light"
+            time.sleep(1)
+
+        return final_mode
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        return "system"
+
+
+def get_chrome_appearance_mode_ui(env, config: Dict[str, str]):
+    """
+    Read Chrome appearance mode from the settings UI (chrome://settings/appearance).
+    Returns one of: "light", "dark", "system".
+    Falls back to get_chrome_color_scheme if UI probing fails.
+    """
+    host = env.vm_ip
+    port = env.chromium_port
+    remote_debugging_url = f"http://{host}:{port}"
+
+    js_probe = r"""
+() => {
+  const lower = (s) => String(s || '').toLowerCase();
+  const allowedPrefPaths = new Set([
+    'prefs.browser.theme.color_scheme',
+    'prefs.browser.theme.color_scheme2',
+    'prefs.extensions.theme.system_theme',
+  ]);
+
+  const inferFromText = (s) => {
+    const t = lower(s);
+    if (t.includes('light')) return 'light';
+    if (t.includes('dark')) return 'dark';
+    if (t.includes('device') || t.includes('system') || t.includes('default')) return 'system';
+    return null;
+  };
+
+  const collectShadowRoots = (root, acc) => {
+    if (!root) return;
+    const all = root.querySelectorAll('*');
+    for (const el of all) {
+      if (el.shadowRoot) {
+        acc.push(el.shadowRoot);
+        collectShadowRoots(el.shadowRoot, acc);
+      }
+    }
+  };
+
+  const modes = [];
+
+  // 1) Try settings-ui prefs recursively (WebUI internal state)
+  try {
+    const ui = document.querySelector('settings-ui');
+    const prefs = ui && ui.prefs ? ui.prefs : null;
+    const visited = new Set();
+    const walk = (obj, path) => {
+      if (!obj || typeof obj !== 'object') return;
+      if (visited.has(obj)) return;
+      visited.add(obj);
+
+      // Common pref leaf shapes: {key, value} or nested objects.
+      if (Object.prototype.hasOwnProperty.call(obj, 'value')) {
+        const v = obj.value;
+        const p = lower(path);
+        if (allowedPrefPaths.has(p)) {
+          if (p.endsWith('extensions.theme.system_theme')) {
+            if (v === 0 || v === '0' || v === false) modes.push('light');
+            if (v === 1 || v === '1' || v === true) modes.push('dark');
+          } else {
+            if (v === 1 || v === '1' || lower(v) === 'light') modes.push('light');
+            if (v === 2 || v === '2' || lower(v) === 'dark') modes.push('dark');
+            if (v === 0 || v === '0' || lower(v) === 'system' || lower(v) === 'default' || lower(v) === 'device') modes.push('system');
+          }
+        }
+      }
+
+      for (const [k, v] of Object.entries(obj)) {
+        walk(v, path ? `${path}.${k}` : k);
+      }
+    };
+    walk(prefs, 'prefs');
+  } catch (e) {}
+
+  // 2) Scan selected/checked controls through shadow DOM text.
+  try {
+    const roots = [document];
+    collectShadowRoots(document, roots);
+    const candidates = [];
+    for (const r of roots) {
+      for (const el of r.querySelectorAll('[selected],[checked],[aria-checked="true"],option:checked')) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (txt) candidates.push(txt);
+      }
+    }
+    for (const t of candidates) {
+      const m = inferFromText(t);
+      if (m) modes.push(m);
+    }
+  } catch (e) {}
+
+  // Priority: explicit light/dark from UI; otherwise system.
+  if (modes.includes('light')) return 'light';
+  if (modes.includes('dark')) return 'dark';
+  if (modes.includes('system')) return 'system';
+  return null;
+}
+"""
+
+    try:
+        with sync_playwright() as p:
+            try:
+                browser = p.chromium.connect_over_cdp(remote_debugging_url)
+            except Exception:
+                # Fallback to file-based mode if Chrome CDP is unavailable.
+                return get_chrome_color_scheme(env, config)
+
+            page = browser.contexts[0].new_page()
+            page.goto("chrome://settings/appearance", wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(2500)
+            mode = page.evaluate(js_probe)
+            browser.close()
+
+            if mode in {"light", "dark", "system"}:
+                return mode
+            return get_chrome_color_scheme(env, config)
+    except Exception:
+        return get_chrome_color_scheme(env, config)
+
+
 def get_bookmarks(env, config: Dict[str, str]):
     os_type = env.vm_platform
     if os_type == 'Windows':
@@ -534,90 +781,118 @@ def get_extensions_installed_from_shop(env, config: Dict[str, str]):
 
 # The following ones require Playwright to be installed on the target machine, and the chrome needs to be pre-config on
 # port info to allow remote debugging, see README.md for details
-
 def get_page_info(env, config: Dict[str, str]):
     host = env.vm_ip
     port = env.chromium_port  # fixme: this port is hard-coded, need to be changed from config file
     server_port = env.server_port
-    url = config["url"]
+    target_url = config["url"]
 
     remote_debugging_url = f"http://{host}:{port}"
-    
+
     # Configuration for retry and timeout
     max_retries = 2
     timeout_ms = 60000  # Increase timeout to 60 seconds
-    
+
     for attempt in range(max_retries):
         try:
-            logger.info(f"[PAGE_INFO] Attempt {attempt + 1}/{max_retries} for URL: {url}")
-            
+            logger.info(f"[PAGE_INFO] Attempt {attempt + 1}/{max_retries} for URL: {target_url}")
+
             with sync_playwright() as p:
                 # connect to remote Chrome instance
                 try:
                     browser = p.chromium.connect_over_cdp(remote_debugging_url)
-                    logger.info(f"[PAGE_INFO] Successfully connected to existing Chrome instance")
+                    logger.info("[PAGE_INFO] Successfully connected to existing Chrome instance")
                 except Exception as e:
                     logger.warning(f"[PAGE_INFO] Failed to connect to existing Chrome instance: {e}")
-                    # If the connection fails, start a new browser instance
-                    platform.machine()
-                    if "arm" in platform.machine():
-                        # start a new browser instance if the connection fails
-                        payload = json.dumps({"command": [
-                            "chromium",
-                            "--remote-debugging-port=1337"
-                        ], "shell": False})
-                    else:
-                        payload = json.dumps({"command": [
-                            "google-chrome",
-                            "--remote-debugging-port=1337"
-                        ], "shell": False})
+
+                    # IMPORTANT: detect platform/machine from VM, not local
+                    try:
+                        vm_machine = (env.controller.get_vm_machine() or "").lower()
+                    except Exception as e2:
+                        logger.warning(f"[PAGE_INFO] Failed to get VM machine type: {e2}")
+                        vm_machine = ""
+
+                    is_arm = ("arm" in vm_machine) or ("aarch" in vm_machine)
+                    logger.info(f"[PAGE_INFO] VM machine='{vm_machine}', is_arm={is_arm}")
+
+                    cmd = ["chromium", "--remote-debugging-port=1337"] if is_arm else ["google-chrome", "--remote-debugging-port=1337"]
+                    payload = json.dumps({"command": cmd, "shell": False})
 
                     headers = {"Content-Type": "application/json"}
-                    requests.post("http://" + host + ":" + server_port + "/setup" + "/launch", headers=headers, data=payload)
+                    requests.post(
+                        f"http://{host}:{server_port}/setup/launch",
+                        headers=headers,
+                        data=payload,
+                        timeout=30,
+                    )
                     time.sleep(5)
-                    browser = p.chromium.connect_over_cdp(remote_debugging_url)
-                    logger.info(f"[PAGE_INFO] Successfully connected to new Chrome instance")
 
-                page = browser.new_page()
-                
+                    browser = p.chromium.connect_over_cdp(remote_debugging_url)
+                    logger.info("[PAGE_INFO] Successfully connected to new Chrome instance")
+
+                # Create page using existing CDP context (per feedback)
+                try:
+                    if getattr(browser, "contexts", None) and len(browser.contexts) > 0:
+                        context = browser.contexts[0]
+                        page = context.new_page()
+                    else:
+                        # Fallback: create a new context if none exists
+                        context = browser.new_context()
+                        page = context.new_page()
+                except Exception as e:
+                    logger.error(f"[PAGE_INFO] Failed to create page from context: {e}")
+                    browser.close()
+                    raise
+
                 # Set longer timeout for navigation
                 page.set_default_timeout(timeout_ms)
-                
-                logger.info(f"[PAGE_INFO] Navigating to URL: {url}")
-                page.goto(url, wait_until='networkidle', timeout=timeout_ms)
+
+                logger.info(f"[PAGE_INFO] Navigating to URL: {target_url}")
+                page.goto(target_url, wait_until="networkidle", timeout=timeout_ms)
 
                 try:
-                    # Wait for the page to finish loading, this prevents the "execution context was destroyed" issue
-                    page.wait_for_load_state('networkidle', timeout=timeout_ms)  # Wait for the 'load' event to complete
+                    # Wait for the page to finish loading to avoid "execution context was destroyed"
+                    page.wait_for_load_state("networkidle", timeout=timeout_ms)
                     title = page.title()
-                    url = page.url
-                    page_info = {'title': title, 'url': url, 'content': page.content()}
+                    final_url = page.url
+                    page_info = {"title": title, "url": final_url, "content": page.content()}
                     logger.info(f"[PAGE_INFO] Successfully loaded page. Title: '{title}'")
                 except TimeoutError:
-                    # If page loading times out, catch the exception and store the current information in the list
-                    logger.warning(f"[PAGE_INFO] Page load timeout for URL: {url}")
-                    page_info = {'title': 'Load timeout', 'url': page.url, 'content': page.content()}
+                    logger.warning(f"[PAGE_INFO] Page load timeout for URL: {target_url}")
+                    page_info = {"title": "Load timeout", "url": page.url, "content": page.content()}
                 except Exception as e:
-                    # Catch other potential exceptions that might occur while reading the page title
-                    logger.error(f'[PAGE_INFO] Error: {e}')
-                    page_info = {'title': 'Error encountered', 'url': page.url, 'content': page.content()}
+                    logger.error(f"[PAGE_INFO] Error while reading page info: {e}")
+                    page_info = {"title": "Error encountered", "url": page.url, "content": page.content()}
+
+                # Best-effort cleanup (CDP disconnect)
+                try:
+                    page.close()
+                except Exception:
+                    pass
+                try:
+                    # Only close context if we created it (heuristic: no pre-existing contexts)
+                    # If you want to be strict, track a flag `created_context = True/False`.
+                    pass
+                except Exception:
+                    pass
 
                 browser.close()
                 return page_info
-                
+
         except Exception as e:
             logger.error(f"[PAGE_INFO] Attempt {attempt + 1} failed: {str(e)}")
             logger.error(f"[PAGE_INFO] Exception type: {type(e).__name__}")
-            
+
             if attempt < max_retries - 1:
-                logger.info(f"[PAGE_INFO] Retrying in 3 seconds...")
+                logger.info("[PAGE_INFO] Retrying in 3 seconds...")
                 time.sleep(3)
             else:
                 logger.error(f"[PAGE_INFO] All {max_retries} attempts failed. Returning error info.")
-                return {'title': 'Connection failed', 'url': url, 'content': ''}
+                return {"title": "Connection failed", "url": target_url, "content": ""}
 
-    # This should never be reached, but just in case
-    return {'title': 'Unknown error', 'url': url, 'content': ''}
+    return {"title": "Unknown error", "url": target_url, "content": ""}
+
+
 
 
 def get_open_tabs_info(env, config: Dict[str, str]):
@@ -827,8 +1102,8 @@ def get_active_tab_info(env, config: Dict[str, str]):
                 
                 try:
                     logger.info(f"[ACTIVE_TAB_INFO] Navigating to URL: {active_tab_url}")
-                    page.goto(active_tab_url, wait_until='networkidle', timeout=timeout_ms)
-                    page.wait_for_load_state('networkidle', timeout=timeout_ms)  # Wait for the 'load' event to complete
+                    page.goto(active_tab_url, wait_until='load', timeout=timeout_ms)
+                    page.wait_for_load_state('load', timeout=timeout_ms)  # Wait for the 'load' event to complete
                     
                     active_tab_info = {
                         'title': page.title(),
@@ -1303,6 +1578,40 @@ def get_enable_enhanced_safety_browsing(env, config: Dict[str, str]):
         logger.error(f"Error: {e}")
         return "Google"
 
+
+def get_enable_safe_browsing(env, config: Dict[str, str]):
+    os_type = env.vm_platform
+    if os_type == 'Windows':
+        preference_file_path = env.controller.execute_python_command("""import os; print(os.path.join(os.getenv('LOCALAPPDATA'),
+                                            'Google\\Chrome\\User Data\\Default\\Preferences'))""")['output'].strip()
+    elif os_type == 'Darwin':
+        preference_file_path = env.controller.execute_python_command(
+            "import os; print(os.path.join(os.getenv('HOME'), 'Library/Application Support/Google/Chrome/Default/Preferences'))")[
+            'output'].strip()
+    elif os_type == 'Linux':
+        if "arm" in platform.machine():
+            preference_file_path = env.controller.execute_python_command(
+                "import os; print(os.path.join(os.getenv('HOME'), 'snap/chromium/common/chromium/Default/Preferences'))")[
+                'output'].strip()
+        else:
+            preference_file_path = env.controller.execute_python_command(
+                "import os; print(os.path.join(os.getenv('HOME'), '.config/google-chrome/Default/Preferences'))")[
+                'output'].strip()
+
+    else:
+        raise Exception('Unsupported operating system')
+
+    try:
+        content = env.controller.get_file(preference_file_path)
+        data = json.loads(content)
+
+        safebrowsing = data.get('safebrowsing', {})
+        is_enhanced = bool(safebrowsing.get('enhanced', False))
+        is_enabled = bool(safebrowsing.get('enabled', False))
+        return "true" if (is_enhanced or is_enabled) else "false"
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        return "false"
 
 def get_new_startup_page(env, config: Dict[str, str]):
     os_type = env.vm_platform

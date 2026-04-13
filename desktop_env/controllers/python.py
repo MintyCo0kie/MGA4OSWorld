@@ -238,11 +238,16 @@ class PythonController:
             "returncode": -1
         }
 
-    def execute_action(self, action: Dict[str, Any]):
+    def execute_action(self, action):
         """
         Executes an action on the server computer.
         """
+        # Handle string actions
         if action in ['WAIT', 'FAIL', 'DONE']:
+            return
+        
+        # Handle dictionary actions
+        if type(action) == dict and action.get('action_type') in ['WAIT', 'FAIL', 'DONE']:
             return
 
         action_type = action["action_type"]
@@ -459,6 +464,13 @@ class PythonController:
         Gets the size of the vm screen.
         """
         return self.execute_python_command("import platform; print(platform.system())")['output'].strip()
+    
+    def get_vm_machine(self):
+        """
+        Gets the machine of the vm.
+        """
+        return self.execute_python_command("import platform; print(platform.machine())")['output'].strip()
+
 
     def get_vm_screen_size(self):
         """

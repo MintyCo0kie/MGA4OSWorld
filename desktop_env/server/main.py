@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 from typing import List, Dict, Tuple, Literal
 import concurrent.futures
-
 import Xlib
+import traceback
 import lxml.etree
 import pyautogui
 import requests
@@ -19,6 +19,13 @@ from PIL import Image, ImageGrab
 from Xlib import display, X
 from flask import Flask, request, jsonify, send_file, abort  # , send_from_directory
 from lxml.etree import _Element
+
+import sys
+proxy_url = "http://chengweihua:eoYXkXPi4vaSawGQtehKRqN202C8i7165dkMyVnPxFhh6ZeNCwicRLSM6Irt@10.1.20.50:23128"
+os.environ['http_proxy'] = proxy_url
+os.environ['https_proxy'] = proxy_url
+os.environ['HTTP_PROXY'] = proxy_url
+os.environ['HTTPS_PROXY'] = proxy_url
 
 platform_name: str = platform.system()
 
@@ -980,7 +987,21 @@ def get_screen_size():
             "height": screen_height
         }
     )
+# @app.route('/screen_size', methods=['POST'])
+# def get_screen_size():
+#     """
+#     使用 pyautogui 获取屏幕尺寸。
+#     这是一个跨平台且健壮的方法。
+#     """
+#     # pyautogui.size() 会返回一个包含 width 和 height 的元组或命名元组
+#     size = pyautogui.size()
+#     screen_width = size.width
+#     screen_height = size.height
 
+#     return jsonify({
+#         "width": screen_width,
+#         "height": screen_height
+#     })
 
 @app.route('/window_size', methods=['POST'])
 def get_window_size():
@@ -1731,9 +1752,9 @@ def run_bash_script():
             )
         
         # Log the command execution for trajectory recording
-        _append_event("BashScript", 
-                      {"script": script, "output": result.stdout, "error": "", "returncode": result.returncode}, 
-                      ts=time.time())
+        # _append_event("BashScript", 
+        #               {"script": script, "output": result.stdout, "error": "", "returncode": result.returncode}, 
+        #               ts=time.time())
         
         return jsonify({
             'status': 'success' if result.returncode == 0 else 'error',
@@ -1762,9 +1783,9 @@ def run_bash_script():
                 shell=False
             )
             
-            _append_event("BashScript", 
-                          {"script": script, "output": result.stdout, "error": "", "returncode": result.returncode}, 
-                          ts=time.time())
+            # _append_event("BashScript", 
+            #               {"script": script, "output": result.stdout, "error": "", "returncode": result.returncode}, 
+            #               ts=time.time())
             
             return jsonify({
                 'status': 'success' if result.returncode == 0 else 'error',

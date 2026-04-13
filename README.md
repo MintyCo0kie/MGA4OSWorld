@@ -1,8 +1,17 @@
-# MGA for OSworld User Guide
+
+<h1 align="center">MGA: Memory-Driven GUI Agent for Observation-Centric Interaction</h1>
+<p align="center">
+    <a href="https://arxiv.org/abs/2510.24168">
+        <img alt="Build" src="http://img.shields.io/badge/cs.CV-arXiv%3A2510.24168-B31B1B.svg">
+    </a>
+</p>
 
 ## Project Overview
 
 MGA (Memory-Driven GUI Agent) is one of the key intelligent agent implementations that can complete complex operating system tasks through visual observation and action execution. All of our experience are based on OSWorld, which is an open-source operating system world benchmark platform that supports multiple virtualization environments and intelligent agents(https://github.com/xlang-ai/OSWorld). 
+
+https://github.com/user-attachments/assets/0cf0fc0f-353d-44fc-a85c-629321e1d446
+
 
 ## System Requirements
 
@@ -86,7 +95,7 @@ Complete command to run MGA Agent with Docker provider:
 ```bash
 python run.py \
   --provider_name docker \
-  --path_to_vm /home/chengweihua/Desktop/cwh/code/OSWorld/docker_vm_data/Ubuntu.qcow2 \
+  --path_to_vm \Ubuntu.qcow2 \
   --headless \
   --observation_type screenshot \
   --model MGA1 \

@@ -41,7 +41,7 @@ def get_result(action_space, use_model, observation_type, result_dir):
                             all_result.append(0.0)
 
     for domain in domain_result:
-        print("Domain:", domain, "Runned:", len(domain_result[domain]), "Success Rate:",
+        print("Domain:", domain, "Runned:", len(domain_result[domain]),"Successully Ran:",sum(domain_result[domain]), "Success Rate:",
               sum(domain_result[domain]) / len(domain_result[domain]) * 100, "%")
 
     print(">>>>>>>>>>>>>")
@@ -68,4 +68,4 @@ def get_result(action_space, use_model, observation_type, result_dir):
 
 
 if __name__ == '__main__':
-    get_result("pyautogui", "GTA1_o3_15", "screenshot", "./results")  
+    get_result("pyautogui", "MGA", "screenshot", "./results/")  

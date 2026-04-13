@@ -8,262 +8,312 @@ from wrapt_timeout_decorator import *
 logger = logging.getLogger("desktopenv.experiment")
 
 
-def run_single_example(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
-    runtime_logger = setup_logger(example, example_result_dir)
+def _cleanup_runtime_logger(runtime_logger, file_handler):
     try:
-        agent.reset(runtime_logger)
+        if file_handler:
+            runtime_logger.removeHandler(file_handler)
+            file_handler.flush()
+            file_handler.close()
+    except Exception:
+        pass
+
+
+def run_single_example(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
+    runtime_logger, file_handler = setup_logger(example, example_result_dir)
+
+    try:
+        try:
+            agent.reset(runtime_logger)
+        except Exception:
+            agent.reset()
+
+        runtime_logger.debug(f"User Instruction: {instruction}")
+
+        env.reset(task_config=example)
+        
+        time.sleep(60) # Wait for the environment to be ready
+        obs = env._get_obs() # Get the initial observation
+        done = False
+        step_idx = 0
+        env.controller.start_recording()
+        while not done and step_idx < max_steps:
+            response, actions = agent.predict(
+                instruction,
+                obs
+            )
+            for action in actions:
+                # Capture the timestamp before executing the action
+                action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
+                runtime_logger.info("Step %d: %s", step_idx + 1, action)
+                obs, reward, done, info = env.step(action, args.sleep_after_execution)
+
+                runtime_logger.info("Reward: %.2f", reward)
+                runtime_logger.info("Done: %s", done)
+                # Save screenshot and trajectory information
+                with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"),
+                          "wb") as _f:
+                    _f.write(obs['screenshot'])
+                with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
+                    f.write(json.dumps({
+                        "step_num": step_idx + 1,
+                        "action_timestamp": action_timestamp,
+                        "action": action,
+                        "response": response,
+                        "reward": reward,
+                        "done": done,
+                        "info": info,
+                        "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png"
+                    }))
+                    f.write("\n")
+                if done:
+                    runtime_logger.info("The episode is done.")
+                    break
+            step_idx += 1
+        result = env.evaluate()
+        runtime_logger.info("Result: %.2f", result)
+        scores.append(result)
+        with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{result}\n")
+        env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
     except Exception as e:
-        agent.reset()
-
-    env.reset(task_config=example)
-    
-    time.sleep(60) # Wait for the environment to be ready
-    obs = env._get_obs() # Get the initial observation
-    done = False
-    step_idx = 0
-    env.controller.start_recording()
-    while not done and step_idx < max_steps:
-        response, actions = agent.predict(
-            instruction,
-            obs
-        )
-        for action in actions:
-            # Capture the timestamp before executing the action
-            action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
-            logger.info("Step %d: %s", step_idx + 1, action)
-            obs, reward, done, info = env.step(action, args.sleep_after_execution)
-
-            logger.info("Reward: %.2f", reward)
-            logger.info("Done: %s", done)
-            # Save screenshot and trajectory information
-            with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"),
-                      "wb") as _f:
-                _f.write(obs['screenshot'])
-            with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
-                f.write(json.dumps({
-                    "step_num": step_idx + 1,
-                    "action_timestamp": action_timestamp,
-                    "action": action,
-                    "response": response,
-                    "reward": reward,
-                    "done": done,
-                    "info": info,
-                    "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png"
-                }))
-                f.write("\n")
-            if done:
-                logger.info("The episode is done.")
-                break
-        step_idx += 1
-    result = env.evaluate()
-    logger.info("Result: %.2f", result)
-    scores.append(result)
-    with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
-        f.write(f"{result}\n")
-    env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+        runtime_logger.exception("Error in run_single_example: %s", e)
+        raise
+    finally:
+        _cleanup_runtime_logger(runtime_logger, file_handler)
 
 
 def setup_logger(example, example_result_dir):
     runtime_logger = logging.getLogger(f"desktopenv.example.{example['id']}")
     runtime_logger.setLevel(logging.DEBUG)
-    runtime_logger.addHandler(logging.FileHandler(os.path.join(example_result_dir, "runtime.log")))
-    return runtime_logger
+    runtime_logger.propagate = False
+
+    log_path = os.path.join(example_result_dir, "runtime.log")
+    # remove existing file handlers to avoid duplicates
+    for h in list(runtime_logger.handlers):
+        if isinstance(h, logging.FileHandler):
+            try:
+                runtime_logger.removeHandler(h)
+                h.flush()
+                h.close()
+            except Exception:
+                pass
+
+    file_handler = logging.FileHandler(log_path, encoding="utf-8", mode="a", delay=True)
+    formatter = logging.Formatter(fmt="[%(asctime)s %(levelname)s] %(message)s")
+    file_handler.setFormatter(formatter)
+    runtime_logger.addHandler(file_handler)
+    return runtime_logger, file_handler
 
 def run_single_example_human(env, example, max_steps, instruction, args, example_result_dir, scores):
-    runtime_logger = setup_logger(example, example_result_dir)
-    env.reset(task_config=example)
-    time.sleep(60) # Wait for the environment to be ready
-    obs = env._get_obs() # Get the initial observation
-    
-    # Save initial screenshot
-    with open(os.path.join(example_result_dir, "initial_state.png"), "wb") as _f:
-        _f.write(obs['screenshot'])
-    
-    # Save trajectory information
-    with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
-        f.write(json.dumps({
-            "instruction": instruction,
-            "initial_state": "initial_state.png"
-        }))
-        f.write("\n")
-    
-    # Evaluate the result
-    result = env.evaluate()
-    logger.info("Result: %.2f", result)
-    scores.append(result)
-    with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
-        f.write(f"{result}\n")
-
+    runtime_logger, file_handler = setup_logger(example, example_result_dir)
+    try:
+        env.reset(task_config=example)
+        time.sleep(60) # Wait for the environment to be ready
+        obs = env._get_obs() # Get the initial observation
+        
+        # Save initial screenshot
+        with open(os.path.join(example_result_dir, "initial_state.png"), "wb") as _f:
+            _f.write(obs['screenshot'])
+        
+        # Save trajectory information
+        with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
+            f.write(json.dumps({
+                "instruction": instruction,
+                "initial_state": "initial_state.png"
+            }))
+            f.write("\n")
+        
+        # Evaluate the result
+        result = env.evaluate()
+        logger.info("Result: %.2f", result)
+        scores.append(result)
+        with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{result}\n")
+    finally:
+        _cleanup_runtime_logger(runtime_logger, file_handler)
 
 
 def run_single_example_openaicua(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
-    runtime_logger = setup_logger(example, example_result_dir)
-    agent.reset(runtime_logger)
-    env.reset(task_config=example)
-    time.sleep(60) # Wait for the environment to be ready
-    obs = env._get_obs() # Get the initial observation
-    done = False
-    step_idx = 0
-    env.controller.start_recording()
-    while not done and step_idx < max_steps:
-        response, actions = agent.predict(
-            instruction,
-            obs
-        )
-
-        done = not response.get('state_correct', False)
-
-        for action in actions:
-            # Capture the timestamp before executing the action
-            action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
-            logger.info("Step %d: %s", step_idx + 1, action)
-            obs, reward, done, info, step_info = agent.step(action)
-
-            if not done:
-                if not response.get('state_correct', False):
-                    done = True
-
-            logger.info("Reward: %.2f", reward)
-            logger.info("Done: %s", done)
-            # Save screenshot and trajectory information
-            with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"),
-                      "wb") as _f:
-                _f.write(obs['screenshot'])
-
-            # Remove pending checks if they exist which will cause issues with json serialization
-            if action.get('pending_checks', None):
-                del action['pending_checks']
-
-            with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
-                f.write(json.dumps({
-                    "step_num": step_idx + 1,
-                    "action_timestamp": action_timestamp,
-                    "action": action,
-                    "reward": reward,
-                    "done": done,
-                    "info": info,
-                    "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png"
-                }))
-                f.write("\n")
-            if done:
-                logger.info("The episode is done.")
-                break
-        step_idx += 1
-    result = env.evaluate()
-    logger.info("Result: %.2f", result)
-    scores.append(result)
-    with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
-        f.write(f"{result}\n")
-    env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
-
-def run_single_example_opencua(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
-    runtime_logger = setup_logger(example, example_result_dir)
-    agent.reset(runtime_logger)
-    env.reset(task_config=example)
-    time.sleep(60) # Wait for the environment to be ready
-    obs = env._get_obs() # Get the initial observation
-    done = False
-    step_idx = 0
-    env.controller.start_recording()
-    while not done and step_idx < max_steps:
-        response, actions, info_dict = agent.predict(instruction, obs)
-
-        logger.info(f"Got Action: {actions}")
-        # Breack if no actions
-        if not actions or len(actions)==0 or actions[0]=="" or actions[0].lower().startswith("error"): 
-            break
-
-        for action in actions:
-            # Capture the timestamp before executing the action
-            action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
-            logger.info("Step %d: %s", step_idx + 1, action)
-            
-            obs, reward, done, info = env.step(action, args.sleep_after_execution)
-
-            logger.info(f"Action {action} executed, reward: {reward}, done: {done}")
-            # Save screenshot and trajectory information
-            with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"),
-                      "wb") as _f:
-                _f.write(obs['screenshot'])
-
-            with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
-                f.write(json.dumps({
-                    "step_num": step_idx + 1,
-                    "action_timestamp": action_timestamp,
-                    "action": action,
-                    "response": response,
-                    "reward": reward,
-                    "done": done,
-                    "info": info,
-                    "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png"
-                }))
-                f.write("\n")
-            if done:
-                logger.info("The episode is done.")
-                break
-        step_idx += 1
-
-    result = env.evaluate()
-    logger.info("Result: %.2f", result)
-    scores.append(result)
-    with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
-        f.write(f"{result}\n")
-    env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
-
-def run_single_example_autoglm(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
-    runtime_logger = setup_logger(example, example_result_dir)
+    runtime_logger, file_handler = setup_logger(example, example_result_dir)
     try:
         agent.reset(runtime_logger)
-    except Exception as e:
-        agent.reset()
+        env.reset(task_config=example)
+        time.sleep(60) # Wait for the environment to be ready
+        obs = env._get_obs() # Get the initial observation
+        done = False
+        step_idx = 0
+        env.controller.start_recording()
+        while not done and step_idx < max_steps:
+            response, actions = agent.predict(
+                instruction,
+                obs
+            )
 
-    env.reset(task_config=example)
-    
-    time.sleep(60) # Wait for the environment to be ready
-    obs = env._get_obs() # Get the initial observation
-    done = False
-    step_idx = 0
-    env.controller.start_recording()
-    while not done and step_idx < max_steps:
-        response, actions = agent.predict(
-            instruction,
-            obs
-        )
-        for action in actions:
-            # Capture the timestamp before executing the action
-            action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
-            logger.info("Step %d: %s", step_idx + 1, action)
-            obs, reward, done, info = env.step(action, args.sleep_after_execution)
+            done = not response.get('state_correct', False)
 
-            logger.info("Reward: %.2f", reward)
-            logger.info("Done: %s", done)
-            # Save screenshot and trajectory information
-            with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"),
-                      "wb") as _f:
-                _f.write(obs['screenshot'])
-            with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
-                f.write(json.dumps({
-                    "step_num": step_idx + 1,
-                    "action_timestamp": action_timestamp,
-                    "action": action,
-                    "response": response,
-                    "reward": reward,
-                    "done": done,
-                    "info": info,
-                    "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png"
-                }))
-                f.write("\n")
-            if done:
-                logger.info("The episode is done.")
+            for action in actions:
+                # Capture the timestamp before executing the action
+                action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
+                runtime_logger.info("Step %d: %s", step_idx + 1, action)
+                obs, reward, done, info, step_info = agent.step(action)
+
+
+
+                if not done:
+                    if not response.get('state_correct', False):
+                        done = True
+
+                runtime_logger.info("Reward: %.2f", reward)
+                runtime_logger.info("Done: %s", done)
+                # Save screenshot and trajectory information
+                with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"),
+                          "wb") as _f:
+                    _f.write(obs['screenshot'])
+
+                # Remove pending checks if they exist which will cause issues with json serialization
+                if action.get('pending_checks', None):
+                    del action['pending_checks']
+
+                with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
+                    f.write(json.dumps({
+                        "step_num": step_idx + 1,
+                        "action_timestamp": action_timestamp,
+                        "action": action,
+                        "reward": reward,
+                        "done": done,
+                        "info": info,
+                        "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png"
+                    }))
+                    f.write("\n")
+                if done:
+                    runtime_logger.info("The episode is done.")
+                    break
+            step_idx += 1
+        result = env.evaluate()
+        runtime_logger.info("Result: %.2f", result)
+        scores.append(result)
+        with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{result}\n")
+        env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+    finally:
+        _cleanup_runtime_logger(runtime_logger, file_handler)
+
+
+def run_single_example_opencua(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
+    runtime_logger, file_handler = setup_logger(example, example_result_dir)
+    try:
+        agent.reset(runtime_logger)
+        env.reset(task_config=example)
+        time.sleep(60) # Wait for the environment to be ready
+        obs = env._get_obs() # Get the initial observation
+        done = False
+        step_idx = 0
+        env.controller.start_recording()
+        while not done and step_idx < max_steps:
+            response, actions, info_dict = agent.predict(instruction, obs)
+
+            runtime_logger.info(f"Got Action: {actions}")
+            # Breack if no actions
+            if not actions or len(actions)==0 or actions[0]=="" or actions[0].lower().startswith("error"): 
                 break
+
+            for action in actions:
+                # Capture the timestamp before executing the action
+                action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
+                runtime_logger.info("Step %d: %s", step_idx + 1, action)
+                
+                obs, reward, done, info = env.step(action, args.sleep_after_execution)
+
+                runtime_logger.info(f"Action {action} executed, reward: {reward}, done: {done}")
+                # Save screenshot and trajectory information
+                with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"),
+                          "wb") as _f:
+                    _f.write(obs['screenshot'])
+
+                with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
+                    f.write(json.dumps({
+                        "step_num": step_idx + 1,
+                        "action_timestamp": action_timestamp,
+                        "action": action,
+                        "response": response,
+                        "reward": reward,
+                        "done": done,
+                        "info": info,
+                        "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png"
+                    }))
+                    f.write("\n")
+                if done:
+                    runtime_logger.info("The episode is done.")
+                    break
+            step_idx += 1
+
+        result = env.evaluate()
+        runtime_logger.info("Result: %.2f", result)
+        scores.append(result)
+        with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{result}\n")
+        env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+    finally:
+        _cleanup_runtime_logger(runtime_logger, file_handler)
+
+
+def run_single_example_autoglm(agent, env, example, max_steps, instruction, args, example_result_dir, scores):
+    runtime_logger, file_handler = setup_logger(example, example_result_dir)
+    try:
+        try:
+            agent.reset(runtime_logger)
+        except Exception:
+            agent.reset()
+
+        env.reset(task_config=example)
         
-        if not done: # not completed the task yet
-            env.action_history.append('FAIL')
+        time.sleep(60) # Wait for the environment to be ready
+        obs = env._get_obs() # Get the initial observation
+        done = False
+        step_idx = 0
+        env.controller.start_recording()
+        while not done and step_idx < max_steps:
+            response, actions = agent.predict(
+                instruction,
+                obs
+            )
+            for action in actions:
+                # Capture the timestamp before executing the action
+                action_timestamp = datetime.datetime.now().strftime("%Y%m%d@%H%M%S")
+                runtime_logger.info("Step %d: %s", step_idx + 1, action)
+                obs, reward, done, info = env.step(action, args.sleep_after_execution)
+
+                runtime_logger.info("Reward: %.2f", reward)
+                runtime_logger.info("Done: %s", done)
+                # Save screenshot and trajectory information
+                with open(os.path.join(example_result_dir, f"step_{step_idx + 1}_{action_timestamp}.png"),
+                          "wb") as _f:
+                    _f.write(obs['screenshot'])
+                with open(os.path.join(example_result_dir, "traj.jsonl"), "a") as f:
+                    f.write(json.dumps({
+                        "step_num": step_idx + 1,
+                        "action_timestamp": action_timestamp,
+                        "action": action,
+                        "response": response,
+                        "reward": reward,
+                        "done": done,
+                        "info": info,
+                        "screenshot_file": f"step_{step_idx + 1}_{action_timestamp}.png"
+                    }))
+                    f.write("\n")
+                if done:
+                    runtime_logger.info("The episode is done.")
+                    break
             
-        step_idx += 1
-    result = env.evaluate()
-    logger.info("Result: %.2f", result)
-    scores.append(result)
-    with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
-        f.write(f"{result}\n")
-    env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+            if not done: # not completed the task yet
+                env.action_history.append('FAIL')
+                
+            step_idx += 1
+        result = env.evaluate()
+        runtime_logger.info("Result: %.2f", result)
+        scores.append(result)
+        with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{result}\n")
+        env.controller.end_recording(os.path.join(example_result_dir, "recording.mp4"))
+    finally:
+        _cleanup_runtime_logger(runtime_logger, file_handler)
